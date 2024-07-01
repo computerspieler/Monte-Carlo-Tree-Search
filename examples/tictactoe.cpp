@@ -132,7 +132,7 @@ void printTree(std::shared_ptr<MCTS::Tree<TicTacToeState>> tree_ptr, int ident =
 	if(tree->simulations() > 0) {
 		for(int i = 0; i < ident; i ++)
 			std::cout << ' ';
-		std::cout << '(' << tree->wins() << '/' << tree->simulations() << ')' << std::endl;
+		std::cout << '(' << tree->winRate() << ')' << std::endl;
 	}
 
 	for(auto child : tree->children())

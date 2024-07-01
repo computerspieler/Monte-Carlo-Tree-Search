@@ -2,6 +2,7 @@
 #include <memory>
 #include <random>
 #include <cassert>
+#include <cmath>
 
 namespace MCTS
 {
@@ -31,8 +32,13 @@ public:
 	State& state()
 	{ return m_state; }
 
-	int wins()
-	{ return m_wins; }
+	float winRate()
+	{
+		if(m_simulations == 0)
+			return 0;
+
+		return (float) m_wins / (float) m_simulations;
+	}
 
 	int simulations()
 	{ return m_simulations; }
@@ -67,9 +73,13 @@ template <typename State, typename Information>
 class TreeSearch
 {
 public:
-	TreeSearch(State initial, Information info, std::random_device &rd) :
+	TreeSearch(State initial, Information info,
+		std::random_device &rd,
+		float exploration_parameter = M_SQRT2
+	) :
 		m_rng_gen(rd()),
-		m_info(info)
+		m_info(info),
+		m_exploration_parameter(exploration_parameter)
 	{
 		auto tree = Tree<State>(initial);
 		m_tree = std::make_shared<Tree<State>>(tree);
@@ -90,9 +100,36 @@ public:
 				if(tree->isLeaf())
 					break;
 
-				/* TODO: Change that */
-				distrib = std::uniform_int_distribution<int>(0, tree->children().size()-1);
-				tree_weak_ptr = tree->children()[distrib(m_rng_gen)];
+				float max_score = -1;
+				int next_index = -1;
+				
+				for(size_t i = 0; i < tree->children().size(); i ++) {
+					Tree<State> *child_tree = tree->children()[i].get();
+					if(!child_tree->simulations())
+						continue;
+
+					float score = sqrt(log(tree->simulations()) / child_tree->simulations());
+					score *= m_exploration_parameter;
+					score += child_tree->winRate();
+
+					if(score > max_score) {
+						max_score = score;
+						next_index = i;
+					}
+
+					if(score == max_score) {
+						auto distrib = std::bernoulli_distribution(0.5);
+						if(distrib(m_rng_gen))
+							next_index = i;
+					}
+				}
+
+				if(next_index >= 0)
+					tree_weak_ptr = tree->children()[next_index];
+				else {
+					distrib = std::uniform_int_distribution<int>(0, outcomes.size()-1);
+					tree_weak_ptr = tree->children()[distrib(m_rng_gen)];
+				}
 			}
 		}
 
@@ -110,7 +147,6 @@ public:
 			for(auto outcome : outcomes)
 				tree->addChild(outcome);
 
-			/* TODO: Change that */
 			distrib = std::uniform_int_distribution<int>(0, outcomes.size()-1);
 			tree_weak_ptr = tree->children()[distrib(m_rng_gen)];
 		}
@@ -155,6 +191,7 @@ private:
 	std::shared_ptr<Tree<State>> m_tree;
 	std::mt19937 m_rng_gen;
 	Information m_info;
+	float m_exploration_parameter;
 };
 
 };
